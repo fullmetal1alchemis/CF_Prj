@@ -2,8 +2,7 @@ package main
 
 import (
 	"fmt"
-	"linkontun/internal/in"
-	"linkontun/internal/out"
+	"linkontun/internal/byudp"
 	"log"
 	"os"
 	"os/exec"
@@ -29,8 +28,8 @@ func main() {
 
 	log.Printf("Interface Name: %s\n", ifce.Name())
 
-	go in.IN(ifce, 5)
-	go out.OUT(ifce)
+	go byudp.IN(ifce)
+	go byudp.OUT(ifce)
 
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)

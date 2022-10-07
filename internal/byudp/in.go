@@ -1,4 +1,4 @@
-package in
+package byudp
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 
 //从socket读入数据然后写到网卡
 
-func IN(wi *water.Interface, as int) {
+func IN(tun *water.Interface) {
 	listen, err := net.ListenUDP("udp", &net.UDPAddr{
 		IP:   net.IPv4(192, 168, 85, 101),
 		Port: 30000,
@@ -20,20 +20,20 @@ func IN(wi *water.Interface, as int) {
 	}
 	defer listen.Close()
 
+	data := make([]byte, 1024)
 	for {
-		data := make([]byte, 2048)
 		n, addr, err := listen.ReadFromUDP(data)
 		if err != nil {
 			fmt.Println("read udp failed, err:", err)
 			continue
 		}
-		fmt.Printf("data:%v addr:%v count:%v\n", string(data[:n]), addr, n)
+		fmt.Printf("Remote data from %v, %v bytes:\n", addr, n)
+		fmt.Printf("% x\n", data[:n])
 
-		_, err1 := wi.Write(data[:n])
+		_, err1 := tun.Write(data[:n])
 		if err1 != nil {
 			fmt.Println("write to tun failed, err:", err)
 			continue
 		}
 	}
-
 }
