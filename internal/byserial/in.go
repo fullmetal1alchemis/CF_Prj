@@ -13,6 +13,7 @@ func IN(tun *water.Interface) {
 	mode := &serial.Mode{
 		BaudRate: 115200,
 	}
+
 	device, err := serial.Open("/dev/ttyS1", mode)
 	if err != nil {
 		log.Fatal(err)
@@ -22,48 +23,6 @@ func IN(tun *water.Interface) {
 	var packetBuffer []byte
 	var testSize chan struct{}
 
-	go getSerial(&packetBuffer, device, testSize)
-
-	for {
-		if len(packetBuffer) > 40 {
-			//fmt.Println("BUFFER:")
-			//fmt.Printf("% x\n", packetBuffer)
-			ipVersion := int(packetBuffer[0] / 16)
-			if ipVersion == 4 {
-				packetSize := int(packetBuffer[3]) + 256*int(packetBuffer[2])
-				if len(packetBuffer) > packetSize {
-					packet := packetBuffer[:packetSize]
-					fmt.Println("IPV4 Packet Recived:")
-					fmt.Printf("% x\n", packet)
-					packetBuffer = packetBuffer[packetSize:]
-					_, err := tun.Write(packet)
-					if err != nil {
-						fmt.Println("Write to tun failed, err:", err)
-						continue
-					}
-				}
-			} else if ipVersion == 6 {
-				packetSize := int(packetBuffer[5]) + 256*int(packetBuffer[4]) + 40
-				if len(packetBuffer) > packetSize {
-					packet := packetBuffer[:packetSize]
-					fmt.Println("IPV6 Packet Recived:")
-					fmt.Printf("% x\n", packet)
-					packetBuffer = packetBuffer[packetSize:]
-					_, err := tun.Write(packet)
-					if err != nil {
-						fmt.Println("Write to tun failed, err:", err)
-						continue
-					}
-				}
-			} else {
-				packetBuffer = packetBuffer[:0]
-			}
-		}
-	}
-
-}
-
-func getSerial(buffer *[]byte, device serial.Port, ch chan struct{}) {
 	serialdata := make([]byte, 512)
 	for {
 		n, err := device.Read(serialdata)
@@ -77,6 +36,47 @@ func getSerial(buffer *[]byte, device serial.Port, ch chan struct{}) {
 		}
 		fmt.Println("Remote serial data received:")
 		fmt.Printf("% x\n", serialdata[:n])
-		*buffer = append(*buffer, serialdata[:n]...)
+		packetBuffer = append(packetBuffer, serialdata[:n]...)
+
+		ok, pktSize, err := isPkt(&packetBuffer)
+
+		if err != nil {
+			fmt.Println
+		}
+
+		if ok {
+
+			//fmt.Printf("%x\n", packetBuffer[:pktSize])
+			_, err = tun.Write(packetBuffer[:pktSize])
+			if err != nil {
+				fmt.Println("Tun write error: ", err)
+			}
+
+			// delete writed pkt
+			packetBuffer = packetBuffer[pktSize:]
+		}
+
+	}
+}
+
+func isPkt(buffer *[]byte) (ok bool, pktSize int, err error) {
+	if len(packetBuffer) <= 40 {
+		return false, 0, nil
+	}
+
+	ipVersion := int(packetBuffer[0] / 16)
+
+	if ipVersion == 4 {
+		packetSize := int(packetBuffer[3]) + 256*int(packetBuffer[2])
+	} else if ipVersion == 6 {
+		packetSize := int(packetBuffer[5]) + 256*int(packetBuffer[4]) + 40
+	} else {
+		return false, 0, errors.New("wrong IP version")
+	}
+
+	if len(packetBuffer) >= packetSize {
+		fmt.Println("IP packet is ready")
+
+		return true, packetSize, nil
 	}
 }
