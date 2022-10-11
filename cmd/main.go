@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"linkontun/internal/byudp"
+	"linkontun/internal/byserial"
 	"log"
 	"os"
 	"os/exec"
@@ -28,17 +28,12 @@ func main() {
 
 	log.Printf("Interface Name: %s\n", ifce.Name())
 
-	go byudp.IN(ifce)
-	go byudp.OUT(ifce)
+	go byserial.IN(ifce)
+	go byserial.OUT(ifce)
 
 	sigs := make(chan os.Signal, 1)
-	done := make(chan bool, 1)
 	sig := <-sigs
 	fmt.Println()
 	fmt.Println(sig)
-	done <- true
-
-	<-done
-
 	fmt.Println("exiting")
 }

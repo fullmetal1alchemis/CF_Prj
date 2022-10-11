@@ -30,7 +30,5 @@ func OUT(tun *water.Interface) {
 		if err != nil {
 			log.Println("Fail to send bytes to serial，err:", err)
 		}
-
 	}
-
 }

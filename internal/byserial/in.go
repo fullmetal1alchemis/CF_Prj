@@ -8,7 +8,7 @@ import (
 	"go.bug.st/serial"
 )
 
-func IN(wi *water.Interface) {
+func IN(tun *water.Interface) {
 
 	mode := &serial.Mode{
 		BaudRate: 115200,
@@ -18,7 +18,53 @@ func IN(wi *water.Interface) {
 		log.Fatal(err)
 	}
 
-	serialdata := make([]byte, 1024)
+	//packetBuffer := make([]byte, 2048)
+	var packetBuffer []byte
+	var testSize chan struct{}
+
+	go getSerial(&packetBuffer, device, testSize)
+
+	for {
+		if len(packetBuffer) > 40 {
+			//fmt.Println("BUFFER:")
+			//fmt.Printf("% x\n", packetBuffer)
+			ipVersion := int(packetBuffer[0] / 16)
+			if ipVersion == 4 {
+				packetSize := int(packetBuffer[3]) + 256*int(packetBuffer[2])
+				if len(packetBuffer) > packetSize {
+					packet := packetBuffer[:packetSize]
+					fmt.Println("IPV4 Packet Recived:")
+					fmt.Printf("% x\n", packet)
+					packetBuffer = packetBuffer[packetSize:]
+					_, err := tun.Write(packet)
+					if err != nil {
+						fmt.Println("Write to tun failed, err:", err)
+						continue
+					}
+				}
+			} else if ipVersion == 6 {
+				packetSize := int(packetBuffer[5]) + 256*int(packetBuffer[4]) + 40
+				if len(packetBuffer) > packetSize {
+					packet := packetBuffer[:packetSize]
+					fmt.Println("IPV6 Packet Recived:")
+					fmt.Printf("% x\n", packet)
+					packetBuffer = packetBuffer[packetSize:]
+					_, err := tun.Write(packet)
+					if err != nil {
+						fmt.Println("Write to tun failed, err:", err)
+						continue
+					}
+				}
+			} else {
+				packetBuffer = packetBuffer[:0]
+			}
+		}
+	}
+
+}
+
+func getSerial(buffer *[]byte, device serial.Port, ch chan struct{}) {
+	serialdata := make([]byte, 512)
 	for {
 		n, err := device.Read(serialdata)
 		if err != nil {
@@ -31,12 +77,6 @@ func IN(wi *water.Interface) {
 		}
 		fmt.Println("Remote serial data received:")
 		fmt.Printf("% x\n", serialdata[:n])
-
-		_, err1 := wi.Write(serialdata[:n])
-		if err1 != nil {
-			fmt.Println("Write to tun failed, err:", err1)
-			continue
-		}
+		*buffer = append(*buffer, serialdata[:n]...)
 	}
-
 }
